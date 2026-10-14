@@ -263,7 +263,7 @@ footer { text-align: center; color: #657083; font-size: 12px; margin-top: 30px; 
       }
 
       // Obsługa wcześniejszych wersji aplikacji z innymi nazwami kluczy.
-      for (const key of ["finoraTransactions", "financeTransactions", "transactions"]) {
+      for (const key of ["oszczednosciTransactions", "financeTransactions", "transactions"]) {
         const raw = localStorage.getItem(key);
         if (raw) {
           const parsed = JSON.parse(raw);
@@ -564,13 +564,13 @@ footer { text-align: center; color: #657083; font-size: 12px; margin-top: 30px; 
       row.map(value => `"${String(value).replace(/"/g,'""')}"`).join(";")
     ).join("\r\n");
 
-    downloadFile(csv, `finora-${localDateString()}.csv`, "text/csv;charset=utf-8;");
+    downloadFile(csv, `oszczednosci-${localDateString()}.csv`, "text/csv;charset=utf-8;");
   });
 
   $("backupBtn").addEventListener("click", () => {
     downloadFile(
       JSON.stringify(transactions, null, 2),
-      `finora-kopia-${localDateString()}.json`,
+      `oszczednosci-kopia-${localDateString()}.json`,
       "application/json;charset=utf-8"
     );
   });
