@@ -64,11 +64,59 @@ h1 { font-size: clamp(25px,4vw,35px); letter-spacing: -1.2px; margin: 0 0 8px; }
 .card h2 { font-size: 17px; margin: 0 0 20px; letter-spacing: -.3px; }
 .field { margin-bottom: 16px; }
 label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
-input,select {
-  width: 100%; background: var(--surface2); color: var(--text);
-  border: 1px solid var(--border); border-radius: 11px; padding: 12px 13px;
-  outline: none; min-height: 45px;
+
+input, select {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  padding: 12px 13px;
+  outline: none;
+  min-height: 45px;
 }
+
+/* Pole daty dopasowane do ekranów telefonów */
+input[type="date"] {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  display: block;
+  padding: 10px 8px;
+  font-size: 16px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Formularz nie może rozszerzać karty */
+.field,
+#transactionForm,
+.layout > .card {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 540px) {
+  .field {
+    width: 100%;
+    overflow: hidden;
+  }
+
+  input,
+  select {
+    font-size: 16px;
+  }
+
+  input[type="date"] {
+    padding-left: 7px;
+    padding-right: 7px;
+  }
+}
+
 input:focus,select:focus { border-color: var(--green); box-shadow: 0 0 0 3px #39d98a18; }
 input::placeholder { color: #687386; }
 .type-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 18px; }
@@ -156,23 +204,27 @@ footer { text-align: center; color: #657083; font-size: 12px; margin-top: 30px; 
     <select id="monthFilter" class="month-select" aria-label="Wybierz miesiąc"></select>
   </div>
 
-  <section class="stats">
-    <div class="card">
-      <div class="stat-icon">◈</div>
-      <div class="stat-label">Bilans miesiąca</div>
-      <div class="stat-value" id="balance">0,00 zł</div>
-    </div>
-    <div class="card">
-      <div class="stat-icon">↙</div>
-      <div class="stat-label">Przychody</div>
-      <div class="stat-value green" id="incomeTotal">0,00 zł</div>
-    </div>
-    <div class="card">
-      <div class="stat-icon">↗</div>
-      <div class="stat-label">Wydatki</div>
-      <div class="stat-value red" id="expenseTotal">0,00 zł</div>
-    </div>
-  </section>
+  
+   <section class="stats">
+  <div class="card">
+    <div class="stat-icon">↙</div>
+    <div class="stat-label">Przychody</div>
+    <div class="stat-value green" id="incomeTotal">0,00 zł</div>
+  </div>
+
+  <div class="card">
+    <div class="stat-icon">◈</div>
+    <div class="stat-label">Balans</div>
+    <div class="stat-value" id="balance">0,00 zł</div>
+  </div>
+
+  <div class="card">
+    <div class="stat-icon">↗</div>
+    <div class="stat-label">Wydatki</div>
+    <div class="stat-value red" id="expenseTotal">0,00 zł</div>
+  </div>
+</section>
+  
 
   <div class="layout">
     <section class="card">
@@ -367,16 +419,28 @@ footer { text-align: center; color: #657083; font-size: 12px; margin-top: 30px; 
       .sort((a,b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
   }
 
-  function renderStats(items) {
-    const income = items.filter(t => t.type === "income").reduce((s,t) => s+t.amount,0);
-    const expense = items.filter(t => t.type === "expense").reduce((s,t) => s+t.amount,0);
-    const balance = income - expense;
+ function renderStats(items) {
+  // Przychody ze wszystkich miesięcy — zysk przenosi się dalej.
+  const income = transactions
+    .filter(t => t.type === "income")
+    .reduce((sum, t) => sum + t.amount, 0);
 
-    $("balance").textContent = money(balance);
-    $("balance").className = "stat-value " + (balance < 0 ? "red" : balance > 0 ? "green" : "");
-    $("incomeTotal").textContent = money(income);
-    $("expenseTotal").textContent = money(expense);
-  }
+  // Wydatki tylko z aktualnie wybranego miesiąca.
+  const expense = items
+    .filter(t => t.type === "expense")
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  // Bilans miesiąca uwzględnia narastające przychody
+  // pomniejszone o wydatki z wybranego miesiąca.
+  const balance = income - expense;
+
+  $("balance").textContent = money(balance);
+  $("balance").className =
+    "stat-value " + (balance < 0 ? "red" : balance > 0 ? "green" : "");
+
+  $("incomeTotal").textContent = money(income);
+  $("expenseTotal").textContent = money(expense);
+}
 
   function renderTransactions(items) {
     const container = $("transactions");
