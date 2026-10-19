@@ -277,7 +277,12 @@ footer { text-align: center; color: #657083; font-size: 12px; margin-top: 30px; 
         <button class="secondary" id="exportBtn" type="button">↓ Eksportuj CSV</button>
         <button class="secondary" id="backupBtn" type="button">Zapisz kopię JSON</button>
         <button class="secondary" id="importBtn" type="button">↑ Wczytaj kopię</button>
-        <input id="importFile" type="file" accept=".json,application/json" hidden>
+        <input
+  id="importFile"
+  type="file"
+  accept=".json,.csv,application/json,text/csv"
+  hidden
+>
       </div>
       <p class="subtitle" style="font-size:12px;margin-top:17px">
         Wskazówka: eksportuj kopię zapasową, jeśli planujesz wyczyścić dane przeglądarki.
@@ -641,27 +646,154 @@ footer { text-align: center; color: #657083; font-size: 12px; margin-top: 30px; 
 
   $("importBtn").addEventListener("click", () => $("importFile").click());
 
+  
+  function parseCSV(text) {
+    // Obsługa polskiego CSV: średniki, cudzysłowy i BOM.
+    text = text.replace(/^\uFEFF/, "");
+
+    const rows = [];
+    let row = [];
+    let field = "";
+    let quoted = false;
+
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+
+      if (char === '"') {
+        if (quoted && text[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else {
+          quoted = !quoted;
+        }
+      } else if ((char === ";" || char === ",") && !quoted) {
+        row.push(field.trim());
+        field = "";
+      } else if ((char === "\n" || char === "\r") && !quoted) {
+        if (char === "\r" && text[i + 1] === "\n") i++;
+        row.push(field.trim());
+        if (row.some(value => value !== "")) rows.push(row);
+        row = [];
+        field = "";
+      } else {
+        field += char;
+      }
+    }
+
+    row.push(field.trim());
+    if (row.some(value => value !== "")) rows.push(row);
+
+    if (rows.length < 2) {
+      throw new Error("Plik CSV nie zawiera transakcji.");
+    }
+
+    const headers = rows[0].map(value =>
+      value.toLowerCase().normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+    );
+
+    const findColumn = (...names) =>
+      headers.findIndex(header => names.includes(header));
+
+    const dateCol = findColumn("data", "date");
+    const typeCol = findColumn("typ", "type", "kind");
+    const nameCol = findColumn("nazwa", "name", "description", "opis");
+    const categoryCol = findColumn("kategoria", "category");
+    const amountCol = findColumn("kwota", "amount");
+
+    if ([dateCol, typeCol, nameCol, categoryCol, amountCol].includes(-1)) {
+      throw new Error(
+        "Nie rozpoznano kolumn. Wymagane: Data, Typ, Nazwa, Kategoria, Kwota."
+      );
+    }
+
+    return rows.slice(1).map((values, index) => {
+      const rawAmount = (values[amountCol] || "")
+        .replace(/\s/g, "")
+        .replace(/[złPLN]/gi, "")
+        .replace(",", ".");
+
+      const amount = Number(rawAmount);
+      const date = values[dateCol];
+      const rawType = (values[typeCol] || "").toLowerCase();
+      const transactionType =
+        ["przychod", "przychód", "income", "in"].includes(rawType)
+          ? "income"
+          : ["wydatek", "expense", "out"].includes(rawType)
+            ? "expense"
+            : null;
+
+      if (
+        !Number.isFinite(amount) ||
+        amount <= 0 ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(date || "") ||
+        !transactionType ||
+        !values[nameCol]
+      ) {
+        throw new Error(
+          `Nieprawidłowe dane w wierszu ${index + 2}.`
+        );
+      }
+
+      return {
+        id: `${Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}`,
+        date,
+        type: transactionType,
+        description: values[nameCol],
+        category: values[categoryCol] || "Inne",
+        amount: Math.abs(amount)
+      };
+    });
+  }
+
   $("importFile").addEventListener("change", async event => {
-    const file = event.target.files && event.target.files[0];
+    const file = event.target.files?.[0];
     if (!file) return;
 
     try {
-      const parsed = JSON.parse(await file.text());
-      if (!Array.isArray(parsed)) throw new Error("Nieprawidłowy format");
+      const content = await file.text();
+      const isCSV = /\.csv$/i.test(file.name);
 
-      const imported = parsed.map(normalizeTransaction).filter(Boolean);
-      if (!confirm(`Wczytać ${imported.length} transakcji? Obecne dane zostaną zastąpione.`)) return;
+      let imported;
+
+      if (isCSV) {
+        imported = parseCSV(content);
+      } else {
+        const parsed = JSON.parse(content);
+        if (!Array.isArray(parsed)) {
+          throw new Error("Nieprawidłowy format JSON.");
+        }
+        imported = parsed.map(normalizeTransaction).filter(Boolean);
+      }
+
+      if (!imported.length) {
+        throw new Error("Plik nie zawiera prawidłowych transakcji.");
+      }
+
+      const confirmed = confirm(
+        `Wczytać ${imported.length} transakcji? ` +
+        "Obecne dane zostaną zastąpione. " +
+        "Przed kontynuacją warto wykonać kopię zapasową."
+      );
+
+      if (!confirmed) return;
 
       transactions = imported;
       saveTransactions();
       render();
-      alert("Kopia została wczytana.");
-    } catch {
-      alert("Nie udało się wczytać pliku. Wybierz poprawną kopię JSON z aplikacji oszczednosci.");
+      alert(`Wczytano ${imported.length} transakcji.`);
+    } catch (error) {
+      console.error("Błąd importu:", error);
+      alert(
+        "Nie udało się wczytać pliku. Sprawdź, czy CSV zawiera kolumny " +
+        "Data, Typ, Nazwa, Kategoria, Kwota i czy daty mają format RRRR-MM-DD.\n\n" +
+        (error.message || "")
+      );
     } finally {
       event.target.value = "";
     }
   });
+
 
   updateCategories();
   render();
