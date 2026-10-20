@@ -152,7 +152,9 @@ input::placeholder { color: #687386; }
 .type-btn.active.income { color: var(--green); border-color: var(--green); background: #39d98a12; }
 .type-btn.active.expense { color: var(--red); border-color: var(--red); background: #ff647c12; }
 .primary {
-  width: 100%; background: var(--green); color: #07140d; font-weight: 750;
+  display: block; width: 100%; min-width: 0; max-width: 100%;
+  box-sizing: border-box;
+  background: var(--green); color: #07140d; font-weight: 750;
   border: 0; border-radius: 11px; padding: 14px; margin-top: 3px;
 }
 .primary:hover { filter: brightness(.94); }
