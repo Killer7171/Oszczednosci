@@ -159,6 +159,9 @@ input::placeholder { color: #687386; }
 }
 .primary:hover { filter: brightness(.94); }
 .section-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 15px; }
+.transaction-list-head { flex-wrap: wrap; }
+.transaction-header-actions { display: flex; align-items: center; gap: 8px; }
+.transaction-toggle { padding: 8px 10px; font-size: 12px; white-space: nowrap; }
 .section-head h2 { margin: 0; }
 .count { color: var(--muted); font-size: 12px; }
 .transactions { display: flex; flex-direction: column; gap: 9px; }
@@ -494,9 +497,15 @@ footer { text-align: center; color: #657083; font-size: 12px; margin-top: 30px; 
 
     <section class="card">
       
-<div class="section-head">
+<div class="section-head transaction-list-head">
   <h2>Ostatnie transakcje</h2>
-  <span class="count" id="transactionCount">0 transakcji</span>
+  <div class="transaction-header-actions">
+    <span class="count" id="transactionCount">0 transakcji</span>
+    <button class="secondary transaction-toggle" id="transactionToggle"
+      type="button" aria-controls="transactions" aria-expanded="false" hidden>
+      Pokaż więcej
+    </button>
+  </div>
 </div>
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:15px;">
@@ -717,6 +726,7 @@ footer { text-align: center; color: #657083; font-size: 12px; margin-top: 30px; 
 
   const $ = id => document.getElementById(id);
  let type = "expense";
+  let showAllTransactions = false;
 
   let transactions = loadTransactions();
 
@@ -945,7 +955,15 @@ function deleteTransaction(id) {
 }
   function renderTransactions(items) {
     const container = $("transactions");
+    const toggle = $("transactionToggle");
     $("transactionCount").textContent = `${items.length} ${plural(items.length, "transakcja", "transakcje", "transakcji")}`;
+
+    if (items.length <= 5) showAllTransactions = false;
+    toggle.hidden = items.length <= 5;
+    toggle.textContent = showAllTransactions
+      ? "Zwiń"
+      : `Pokaż więcej (${Math.min(items.length, 100) - 5})`;
+    toggle.setAttribute("aria-expanded", String(showAllTransactions));
 
     if (!items.length) {
       container.innerHTML = '<div class="empty">◈<br><br>Brak transakcji w tym miesiącu.<br>Dodaj pierwszą transakcję, aby rozpocząć.</div>';
@@ -953,7 +971,7 @@ function deleteTransaction(id) {
     }
 
     container.innerHTML = "";
-    items.slice(0,100).forEach(t => {
+  items.slice(0, showAllTransactions ? 100 : 5).forEach(t => {
       const row = document.createElement("div");
       row.className = "transaction";
 
@@ -1000,6 +1018,11 @@ container.appendChild(row);
       container.appendChild(note);
     }
   }
+
+  $("transactionToggle").addEventListener("click", () => {
+    showAllTransactions = !showAllTransactions;
+    renderTransactions(visibleTransactions());
+  });
 
   function renderCategories(items) {
     const container = $("categoryBreakdown");
